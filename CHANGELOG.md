@@ -84,6 +84,29 @@ clients, and how to run the same setup without Nix.
 the ACME DNS-01 challenge through a built-in DNS provider: `acmedns`,
 `cloudflare`, `gigahost`, `hetzner`, `powerdns` or `rfc2136`. `dns.base_domain` must be a public domain you control. [#3554](https://github.com/juanfont/headscale/pull/3554)
 
+### Admin web interface
+
+The binary now serves an admin web interface at `/admin/`. Sign in with an API key
+(`headscale apikeys create`). It lists machines (with a detail page, copy buttons
+and rename, tag, key expiry, delete and route approval), shows a network map,
+edits the policy visually or as code while keeping comments, simulates "can A
+reach B on this port" against a draft policy, and manages users, auth keys, API
+keys and agent keys. It talks to the same `/api/v1`, and is built from `ui/`
+(`npm run build`, then `go build`); a checkout without a UI build still compiles.
+See [Admin UI](https://headscale.net/stable/ref/admin-ui/).
+
+### Activity log and network flows
+
+Headscale now records control-plane events (nodes coming online and going offline,
+registrations, expiry, renames, tag and route changes, policy updates, user and
+key changes) in `activity.db` next to the database, kept for 30 days, and lists
+them at `GET /api/v1/events`.
+
+The new `hs-flow-agent` runs on a node and reports its tailnet traffic, which the
+admin UI shows as real traffic on the network map. It authenticates with an OAuth
+client limited to the new `flows` scope, so it needs no admin API key.
+See [Flow agent](https://headscale.net/stable/ref/flow-agent/).
+
 ### BREAKING
 
 #### Database
@@ -145,6 +168,9 @@ the ACME DNS-01 challenge through a built-in DNS provider: `acmedns`,
 - `tls.acme.challenge_type` accepts `DNS-01`, using `dns.challenge.provider` [#3554](https://github.com/juanfont/headscale/pull/3554)
 - Fix the unix socket being created `0700` instead of the documented `0770` when `unix_socket_permission` is unset. The socket grants full admin access without authentication, so members of its group gain that access; check who is in it before upgrading [#3540](https://github.com/juanfont/headscale/pull/3540)
 - A policy write builds the peer map once instead of twice [#3557](https://github.com/juanfont/headscale/pull/3557)
+- Add `POST /api/v1/policy/simulate` and `POST /api/v1/policy/reachability`, which evaluate a draft policy against the live nodes without storing it
+- Add `os`, `osVersion`, `clientVersion` and `endpoints` to the v1 node, and `GET /api/v1/info` with the server version, login URL and DNS settings
+- Add the `flows` and `flows:read` OAuth scopes and `POST /api/v2/tailnet/{tailnet}/flows`, for flow agents
 
 ## 0.29.5 (2026-10-13)
 

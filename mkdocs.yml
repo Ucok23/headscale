@@ -191,6 +191,8 @@ nav:
       - DNS: ref/dns.md
       - DERP: ref/derp.md
       - API: ref/api.md
+      - Admin UI: ref/admin-ui.md
+      - Flow agent: ref/flow-agent.md
       - Tags: ref/tags.md
       - Debug: ref/debug.md
       - Integration:
