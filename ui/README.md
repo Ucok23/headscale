@@ -31,3 +31,18 @@ npm run gen:api      # regenerate src/api/schema.d.ts from a running server
 Machines (with detail pages and actions), Network (allowed access and real
 traffic), Activity (event log), Policy (visual and code editor with a simulator),
 Users, Keys and Settings. Real traffic needs `hs-flow-agent` on the machines.
+
+## Tests
+
+`npm run e2e` drives the UI in Chromium against a real headscale, with real
+Tailscale clients in userspace-networking mode (no root). **Run it against a
+disposable server**: it creates users, nodes and keys, and overwrites the stored
+policy (restored on exit).
+
+```sh
+HEADSCALE_URL=http://127.0.0.1:8080 HEADSCALE_KEY=hskey-api-… npm run e2e
+```
+
+Needs `tailscale` and `tailscaled` on `PATH`, Chromium (`CHROMIUM=/path`, default
+`/usr/bin/chromium`), and `policy.mode: database`. Set `E2E_SCREENSHOTS=dir` to
+keep screenshots.

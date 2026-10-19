@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build && touch dist/.gitkeep",
     "lint": "oxlint",
     "preview": "vite preview",
-    "gen:api": "curl -s ${HEADSCALE_URL:-http://127.0.0.1:8080}/api/v1/openapi.json -o openapi.json && npx --yes openapi-typescript@7 openapi.json -o src/api/schema.d.ts"
+    "gen:api": "curl -s ${HEADSCALE_URL:-http://127.0.0.1:8080}/api/v1/openapi.json -o openapi.json && npx --yes openapi-typescript@7 openapi.json -o src/api/schema.d.ts",
+    "e2e": "node e2e/run.mjs"
   },
   "dependencies": {
     "jsonc-parser": "^3.3.1",
@@ -22,6 +23,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.88.0",
+    "puppeteer-core": "^25.14.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.4"
   }
