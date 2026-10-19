@@ -90,6 +90,7 @@ func registerUsers(api huma.API, b Backend) {
 		}
 
 		b.Change(policyChanged)
+		b.State.RecordEvent("user.created", "user "+in.Body.Name)
 
 		out := &userOutput{}
 		out.Body.User = userFromView(user.View())
@@ -157,6 +158,7 @@ func registerUsers(api huma.API, b Backend) {
 		}
 
 		b.Change(policyChanged)
+		b.State.RecordEvent("user.deleted", "user "+user.Name)
 
 		return &deleteUserOutput{}, nil
 	})

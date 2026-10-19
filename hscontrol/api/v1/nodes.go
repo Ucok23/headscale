@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -313,6 +314,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 				return nil, mapError("expiring node", expErr)
 			}
 
+			b.State.RecordNodeEvent("node.expiry", node, "expiry disabled")
+
 			out := &nodeOutput{}
 			out.Body.Node = nodeFromView(node)
 
@@ -327,6 +330,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, mapError("expiring node", err)
 		}
+
+		b.State.RecordNodeEvent("node.expiry", node, "expiry set to "+expiry.Format(time.RFC3339))
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)
@@ -353,6 +358,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, mapError("renaming node", err)
 		}
+
+		b.State.RecordNodeEvent("node.renamed", node, "renamed to "+in.NewName)
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)
@@ -399,6 +406,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, huma.Error400BadRequest("setting tags", err)
 		}
+
+		b.State.RecordNodeEvent("node.tags", node, "tags: "+strings.Join(in.Body.Tags, ", "))
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)
@@ -447,6 +456,8 @@ func registerNodeAdminOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, mapError("setting approved routes", err)
 		}
+
+		b.State.RecordNodeEvent("node.routes", node, "approved routes: "+strings.Join(util.PrefixesToString(newApproved), ", "))
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)

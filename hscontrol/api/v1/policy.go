@@ -149,6 +149,8 @@ func registerPolicy(api huma.API, b Backend) {
 			return nil, huma.Error500InternalServerError("reloading policy", err)
 		}
 
+		b.State.RecordEvent("policy.updated", fmt.Sprintf("policy saved (%d bytes)", len(updated.Data)))
+
 		out := &setPolicyOutput{}
 		out.Body.Policy = updated.Data
 		out.Body.UpdatedAt = updated.UpdatedAt
