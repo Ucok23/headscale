@@ -5,7 +5,10 @@
 // client's own byte counters, which headscale shows as network flow and
 // per-node traffic.
 //
-//	hs-flow-agent --server https://headscale.example.com --api-key hskey-api-...
+//	hs-flow-agent --server https://headscale.example.com --key-file /etc/hs-flow-agent.key
+//
+// Use an OAuth client limited to the `flows` scope as the key (create one on the
+// Keys page of the admin UI). An admin API key also works but is all-access.
 //
 // Byte counts need conntrack accounting: sysctl -w net.netfilter.nf_conntrack_acct=1
 package main
@@ -42,7 +45,8 @@ func main() {
 	var prefixes listFlag
 
 	server := flag.String("server", "", "headscale base URL, e.g. https://headscale.example.com")
-	apiKey := flag.String("api-key", os.Getenv("HEADSCALE_API_KEY"), "headscale API key (or HEADSCALE_API_KEY)")
+	keyFlag := flag.String("key", "", "credential: an OAuth client secret (hskey-client-…) or an API key; prefer --key-file or HEADSCALE_KEY, flags show up in `ps`")
+	keyFile := flag.String("key-file", "", "file containing the credential (use with systemd LoadCredential or mode 600)")
 	self := flag.String("self", "", "this node's tailnet IP (default: from `tailscale ip -4`)")
 	interval := flag.Duration("interval", 15*time.Second, "how often to report")
 	source := flag.String("source", "/proc/net/nf_conntrack", "conntrack table to read")
@@ -53,9 +57,30 @@ func main() {
 	flag.Var(&prefixes, "prefix", "tailnet prefix to keep (repeatable; default 100.64.0.0/10 and fd7a:115c:a1e0::/48)")
 	flag.Parse()
 
-	if !*once && (*server == "" || *apiKey == "") {
-		fmt.Fprintln(os.Stderr, "need --server and --api-key (or use --once to try it out)")
+	secret := *keyFlag
+	if *keyFile != "" {
+		k, err := readKeyFile(*keyFile, func(m string) { fmt.Fprintln(os.Stderr, "warning:", m) })
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+
+		secret = k
+	}
+
+	if secret == "" {
+		secret = firstNonEmpty(os.Getenv("HEADSCALE_KEY"), os.Getenv("HEADSCALE_API_KEY"))
+	}
+
+	if !*once && (*server == "" || secret == "") {
+		fmt.Fprintln(os.Stderr, "need --server and a credential (--key-file, HEADSCALE_KEY or --key); or use --once to try it out")
 		os.Exit(2)
+	}
+
+	cred := newCredential(*server, secret)
+
+	if secret != "" && !cred.isOAuth() {
+		fmt.Fprintln(os.Stderr, "warning: using an API key, which has full admin access. Prefer an OAuth client limited to the `flows` scope.")
 	}
 
 	if len(prefixes) == 0 {
@@ -155,7 +180,7 @@ func main() {
 			continue
 		}
 
-		if err := send(ctx, *server, *apiKey, rep); err != nil {
+		if err := send(ctx, cred, rep); err != nil {
 			fmt.Fprintln(os.Stderr, "report failed, will retry with the next interval:", err)
 
 			continue
@@ -165,32 +190,65 @@ func main() {
 	}
 }
 
-func send(ctx context.Context, server, key string, r report) error {
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+
+	return ""
+}
+
+func send(ctx context.Context, cred *credential, r report) error {
 	body, err := json.Marshal(r)
 	if err != nil {
 		return fmt.Errorf("encoding report: %w", err)
 	}
 
+	// One retry: a cached OAuth token may have been revoked or expired early.
+	for attempt := 0; ; attempt++ {
+		status, err := post(ctx, cred, body)
+		if err != nil {
+			return err
+		}
+
+		if status == http.StatusUnauthorized && attempt == 0 && cred.isOAuth() {
+			cred.forget()
+
+			continue
+		}
+
+		if status/100 != 2 {
+			return fmt.Errorf("server answered HTTP %d", status)
+		}
+
+		return nil
+	}
+}
+
+func post(ctx context.Context, cred *credential, body []byte) (int, error) {
+	token, err := cred.bearer(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(server, "/")+"/api/v1/flows", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cred.flowsURL(), bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("building request: %w", err)
+		return 0, fmt.Errorf("building request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending: %w", err)
+		return 0, fmt.Errorf("sending: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("server answered %s", resp.Status)
-	}
-
-	return nil
+	return resp.StatusCode, nil
 }
