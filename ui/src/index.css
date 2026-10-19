@@ -1,0 +1,18 @@
+:root {
+  --bg: #f6f7f9; --panel: #fff; --fg: #1a1d23; --muted: #6b7280; --line: #e3e6eb;
+  --accent: #2f5bea; --accent-fg: #fff;
+  --ok: #157f3b; --ok-bg: #e5f6ec; --bad: #b42318; --bad-bg: #fde8e6; --warn: #8a5a00; --warn-bg: #fdf1d6;
+  --mono: ui-monospace, 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115; --panel: #171a21; --fg: #e6e8ec; --muted: #8b93a1; --line: #262b35;
+    --accent: #6d8dff; --accent-fg: #0b1020;
+    --ok: #5fd08a; --ok-bg: #12301f; --bad: #ff8b80; --bad-bg: #3a1a17; --warn: #f2c25b; --warn-bg: #33270b;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-size: 14px; }
+code, textarea { font-family: var(--mono); }

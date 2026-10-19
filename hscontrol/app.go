@@ -43,6 +43,7 @@ import (
 	"github.com/juanfont/headscale/hscontrol/types/change"
 	"github.com/juanfont/headscale/hscontrol/util"
 	"github.com/juanfont/headscale/hscontrol/util/zlog"
+	"github.com/juanfont/headscale/ui"
 	"github.com/mholt/acmez/v3/acme"
 	"github.com/pkg/profile"
 	"github.com/rs/zerolog/log"
@@ -542,6 +543,8 @@ func (h *Headscale) createRouter(apiV1Mux, apiV2Mux http.Handler) *chi.Mux {
 	r.Head("/machine/ping-response", h.PingResponseHandler)
 
 	r.Get("/favicon.ico", FaviconHandler)
+	r.Handle("/admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))
+	r.Handle("/admin/*", ui.Handler("/admin"))
 	r.Get("/", BlankHandler)
 
 	return r
