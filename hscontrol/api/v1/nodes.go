@@ -55,6 +55,12 @@ type Node struct {
 	AvailableRoutes []string        `json:"availableRoutes"                                                                               nullable:"false"`
 	SubnetRoutes    []string        `json:"subnetRoutes"                                                                                  nullable:"false"`
 	Tags            []string        `json:"tags"                                                                                          nullable:"false"`
+
+	// Reported by the client (Hostinfo). Empty until the node has connected.
+	OS            string   `json:"os"`
+	OSVersion     string   `json:"osVersion"`
+	ClientVersion string   `json:"clientVersion"`
+	Endpoints     []string `json:"endpoints" nullable:"false"`
 }
 
 // NodePreAuthKey is the PreAuthKey shape embedded in a Node response. The
@@ -618,6 +624,17 @@ func nodeFromView(view types.NodeView) Node {
 		AvailableRoutes: nonNilStrings(util.PrefixesToString(view.AnnouncedRoutes())),
 		SubnetRoutes:    []string{},
 		Tags:            nonNilStrings(view.Tags().AsSlice()),
+		Endpoints:       []string{},
+	}
+
+	if hi := view.Hostinfo(); hi.Valid() {
+		n.OS = hi.OS()
+		n.OSVersion = hi.OSVersion()
+		n.ClientVersion = hi.IPNVersion()
+	}
+
+	for _, ep := range view.Endpoints().All() {
+		n.Endpoints = append(n.Endpoints, ep.String())
 	}
 
 	if view.User().Valid() {
