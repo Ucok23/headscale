@@ -35,3 +35,18 @@ export function errMessage(e: unknown): string {
   }
   return String(e)
 }
+
+/** The v2 API (Tailscale-shaped) is not part of the generated schema; call it directly. */
+export async function v2<T = unknown>(path: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; data: T; error: string }> {
+  const res = await fetch(window.location.origin + path, {
+    ...init,
+    headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${getKey()}`, ...init.headers },
+  })
+  const text = await res.text()
+  let data: unknown = {}
+  try { data = text ? JSON.parse(text) : {} } catch { /* not JSON */ }
+  const o = data as { message?: string; detail?: string; error_description?: string }
+  return { ok: res.ok, status: res.status, data: data as T, error: res.ok ? '' : o.message ?? o.detail ?? o.error_description ?? `HTTP ${res.status}` }
+}
+
+export type V2Key = { id: string; keyType: string; description?: string; created?: string; expires?: string; invalid?: boolean; scopes?: string[]; key?: string }
