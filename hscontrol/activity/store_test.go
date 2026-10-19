@@ -112,3 +112,37 @@ func TestNodeTrafficSkipsCounterResets(t *testing.T) {
 	assert.EqualValues(t, 200+100, nt[0].RxBytes, "200 + (reset skipped) + 100")
 	assert.EqualValues(t, 20+20, nt[0].TxBytes)
 }
+
+func TestInMemoryStoresAreIsolated(t *testing.T) {
+	a, err := Open("")
+	require.NoError(t, err)
+
+	b, err := Open("")
+	require.NoError(t, err)
+
+	a.Record(Event{Type: "only.in.a"})
+
+	ev, err := b.Events(EventFilter{})
+	require.NoError(t, err)
+	assert.Empty(t, ev, "a second in-memory store must not see the first one's events")
+}
+
+func TestIngestReportValidation(t *testing.T) {
+	s := newStore(t)
+
+	n, err := s.IngestReport(Report{Reporter: "100.64.0.1", Flows: []Flow{{Src: "a", Dst: "b", Bytes: 5}}})
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	_, err = s.IngestReport(Report{Reporter: "r", Flows: make([]Flow, MaxFlowBatch+1)})
+	assert.ErrorIs(t, err, ErrBadFlow, "oversized batches are refused")
+
+	_, err = s.IngestReport(Report{Reporter: "r", Time: time.Now().Add(-3 * time.Hour).Unix()})
+	assert.ErrorIs(t, err, ErrBadFlow, "stale samples are refused")
+
+	_, err = s.IngestReport(Report{Reporter: "r", Time: time.Now().Add(time.Hour).Unix()})
+	assert.ErrorIs(t, err, ErrBadFlow, "samples from the future are refused")
+
+	_, err = s.IngestReport(Report{})
+	assert.ErrorIs(t, err, ErrBadFlow, "a reporter is required")
+}

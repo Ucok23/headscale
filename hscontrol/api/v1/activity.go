@@ -16,10 +16,6 @@ func init() {
 	registrations = append(registrations, registerActivity)
 }
 
-// maxFlowBatch bounds one agent report so a misbehaving agent cannot make a
-// single request arbitrarily expensive.
-const maxFlowBatch = 5000
-
 // parseWindow understands Go durations ("90m", "24h") plus "Nd" for days.
 func parseWindow(s string, def time.Duration) (time.Duration, error) {
 	s = strings.TrimSpace(s)
@@ -58,14 +54,8 @@ type (
 		}
 	}
 
-	FlowReport struct {
-		Reporter string             `json:"reporter" doc:"The reporting node's tailnet IP."`
-		Time     int64              `json:"time,omitempty" doc:"Unix seconds the sample was taken. Defaults to now."`
-		Flows    []activity.Flow    `json:"flows" nullable:"false" doc:"Traffic since the previous report (deltas, not totals)."`
-		Counters *activity.Counters `json:"counters,omitempty" doc:"Cumulative client byte counters."`
-	}
 	postFlowsInput struct {
-		Body FlowReport
+		Body activity.Report
 	}
 	postFlowsOutput struct {
 		Body struct {
@@ -130,26 +120,13 @@ func registerActivity(api huma.API, b Backend) {
 		Tags:     []string{"Activity"},
 		Security: bearerAuth,
 	}, func(_ context.Context, in *postFlowsInput) (*postFlowsOutput, error) {
-		if len(in.Body.Flows) > maxFlowBatch {
-			return nil, huma.Error400BadRequest(fmt.Sprintf("at most %d flows per report", maxFlowBatch))
-		}
-
-		at := time.Now()
-		if in.Body.Time > 0 {
-			at = time.Unix(in.Body.Time, 0)
-			// Agents have their own clocks; refuse samples far from ours.
-			if d := time.Since(at); d > time.Hour || d < -5*time.Minute {
-				return nil, huma.Error400BadRequest("report time is too far from the server's clock")
-			}
-		}
-
-		err := b.State.Activity.Ingest(in.Body.Reporter, at, in.Body.Flows, in.Body.Counters)
+		n, err := b.State.Activity.IngestReport(in.Body)
 		if err != nil {
 			return nil, huma.Error400BadRequest(err.Error(), err)
 		}
 
 		out := &postFlowsOutput{}
-		out.Body.Accepted = len(in.Body.Flows)
+		out.Body.Accepted = n
 
 		return out, nil
 	})

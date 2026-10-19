@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -15,6 +16,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+// memoryStores numbers in-memory stores so each gets its own database.
+var memoryStores atomic.Int64
 
 const (
 	eventRetention = 30 * 24 * time.Hour
@@ -47,7 +51,9 @@ type Store struct {
 func Open(path string) (*Store, error) {
 	dsn := path
 	if dsn == "" {
-		dsn = "file:activity?mode=memory&cache=shared"
+		// A distinct name per store: a shared name would make every in-memory
+		// store in the process see the same data.
+		dsn = fmt.Sprintf("file:activity-%d?mode=memory&cache=shared", memoryStores.Add(1))
 	}
 
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Discard})
@@ -416,4 +422,40 @@ func (s *Store) NodeTraffic(since time.Time) ([]NodeTraffic, error) {
 	}
 
 	return out, nil
+}
+
+// MaxFlowBatch bounds one agent report so a misbehaving agent cannot make a
+// single request arbitrarily expensive.
+const MaxFlowBatch = 5000
+
+// Report is what a flow agent sends: the traffic seen since its previous report.
+type Report struct {
+	Reporter string    `json:"reporter" doc:"The reporting node's tailnet IP."`
+	Time     int64     `json:"time,omitempty" doc:"Unix seconds the sample was taken. Defaults to now."`
+	Flows    []Flow    `json:"flows" nullable:"false" doc:"Traffic since the previous report (deltas, not totals)."`
+	Counters *Counters `json:"counters,omitempty" doc:"Cumulative client byte counters."`
+}
+
+// IngestReport validates and stores an agent report taken at its own clock.
+// It returns how many flows were accepted. Errors wrap [ErrBadFlow], so callers
+// can answer 400 for them.
+func (s *Store) IngestReport(r Report) (int, error) {
+	if len(r.Flows) > MaxFlowBatch {
+		return 0, fmt.Errorf("%w: at most %d flows per report", ErrBadFlow, MaxFlowBatch)
+	}
+
+	at := time.Now()
+	if r.Time > 0 {
+		at = time.Unix(r.Time, 0)
+		// Agents have their own clocks; refuse samples far from ours.
+		if d := time.Since(at); d > time.Hour || d < -5*time.Minute {
+			return 0, fmt.Errorf("%w: report time is too far from the server's clock", ErrBadFlow)
+		}
+	}
+
+	if err := s.Ingest(r.Reporter, at, r.Flows, r.Counters); err != nil {
+		return 0, err
+	}
+
+	return len(r.Flows), nil
 }
