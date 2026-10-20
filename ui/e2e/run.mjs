@@ -169,6 +169,7 @@ try {
   await click('button::-p-text(Approve)')
   ok('a route can be approved', !!(await until(async () => (await nodeNamed('e2e-a')).approvedRoutes.includes('10.99.0.0/24'), 5000)))
   await shot('routes')
+  await wait('button::-p-text(Withdraw)')
   await click('button::-p-text(Withdraw)')
   ok('a route can be withdrawn', !!(await until(async () => !(await nodeNamed('e2e-a')).approvedRoutes.length, 5000)))
 
