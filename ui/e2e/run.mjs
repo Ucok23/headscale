@@ -156,7 +156,7 @@ try {
   await page.reload({ waitUntil: 'networkidle0' }); await wait('.dhead')
   await click('button::-p-text(Edit tags)'); await wait('.modal input')
   await page.type('.modal .chipinput input', 'tag:undefined'); await page.keyboard.press('Enter'); await click('.modal button[type=submit]')
-  ok('an undefined tag shows the server error and keeps the dialog open', !!(await until(() => page.$('.modal .banner.err'), 4000)))
+  ok('an undefined tag shows the server reason and keeps the dialog open', !!(await until(() => page.$('.modal .banner.err'), 4000)) && /tag:undefined|not exist|defined|polic/i.test(await text('.modal .banner.err')), (await page.$eval('.modal .banner.err', (e) => e.innerText).catch(() => '')).slice(0, 100))
   await page.keyboard.press('Escape')
 
   await page.reload({ waitUntil: 'networkidle0' }); await wait('.dhead')
@@ -192,6 +192,14 @@ try {
   await page.reload({ waitUntil: 'networkidle0' }); await wait('table.machines')
   await rowClick('e2e-temp2', 'button.danger-text'); await wait('.modal input'); await page.type('.modal input', 'e2e-temp2'); await sleep(200); await click('.modal button.danger')
   ok('a user can be deleted', !!(await until(async () => !(await api('/api/v1/user')).json.users.some((u) => u.name === 'e2e-temp2'), 5000)))
+
+  // a user that still owns machines cannot be deleted, and the dialog says why
+  await page.reload({ waitUntil: 'networkidle0' }); await wait('table.machines')
+  await rowClick('e2e-owner', 'button.danger-text'); await wait('.modal input'); await page.type('.modal input', 'e2e-owner'); await sleep(200); await click('.modal button.danger')
+  const refused = await until(() => page.$('.modal .banner.err'), 5000)
+  ok('deleting a user that owns machines is refused with a reason', !!refused && /must be deleted first/i.test(await text('.modal .banner.err')), refused ? (await text('.modal .banner.err')).slice(0, 90) : '')
+  ok('the user is still there', (await api('/api/v1/user')).json.users.some((u) => u.name === 'e2e-owner'))
+  await page.keyboard.press('Escape')
 
   // --- keys
   await go('keys'); await wait('button::-p-text(Generate auth key)')

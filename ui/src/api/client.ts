@@ -27,11 +27,18 @@ export const api = createClient<paths>({
   },
 })
 
-/** Pull a human message out of a problem+json error body. */
+/**
+ * Pull a human message out of a problem+json error body. The useful reason is
+ * usually in errors[].message while `detail` only names the action
+ * ("deleting user"), so show both: "deleting user: user not empty: …".
+ */
 export function errMessage(e: unknown): string {
   if (e && typeof e === 'object') {
-    const o = e as { detail?: string; title?: string }
-    return o.detail ?? o.title ?? JSON.stringify(e)
+    const o = e as { detail?: string; title?: string; errors?: { message?: string }[] }
+    const reasons = (o.errors ?? []).map((x) => x.message).filter((m): m is string => !!m && m !== o.detail)
+    const head = o.detail ?? o.title
+    if (head && reasons.length) return `${head}: ${reasons.join('; ')}`
+    return head ?? reasons.join('; ') ?? JSON.stringify(e)
   }
   return String(e)
 }
