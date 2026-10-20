@@ -97,6 +97,8 @@ func registerApiKeys(api huma.API, b Backend) {
 			return nil, huma.Error500InternalServerError("creating api key", err)
 		}
 
+		b.State.RecordEvent("apikey.created", "API key created")
+
 		out := &createApiKeyOutput{}
 		out.Body.APIKey = keyStr
 

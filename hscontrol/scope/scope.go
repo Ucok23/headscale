@@ -46,6 +46,11 @@ const (
 
 	Users     Scope = "users"
 	UsersRead Scope = "users:read"
+
+	// Flows is headscale-specific (Tailscale has no equivalent): reporting
+	// network flows from a node's flow agent. flows:read reads them back.
+	Flows     Scope = "flows"
+	FlowsRead Scope = "flows:read"
 )
 
 const readSuffix = ":read"
@@ -62,6 +67,7 @@ func Known() []Scope {
 		PolicyFile, PolicyFileRead,
 		FeatureSettings, FeatureSettingsRead,
 		Users, UsersRead,
+		Flows, FlowsRead,
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -54,6 +55,12 @@ type Node struct {
 	AvailableRoutes []string        `json:"availableRoutes"                                                                               nullable:"false"`
 	SubnetRoutes    []string        `json:"subnetRoutes"                                                                                  nullable:"false"`
 	Tags            []string        `json:"tags"                                                                                          nullable:"false"`
+
+	// Reported by the client (Hostinfo). Empty until the node has connected.
+	OS            string   `json:"os"`
+	OSVersion     string   `json:"osVersion"`
+	ClientVersion string   `json:"clientVersion"`
+	Endpoints     []string `json:"endpoints" nullable:"false"`
 }
 
 // NodePreAuthKey is the PreAuthKey shape embedded in a Node response. The
@@ -313,6 +320,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 				return nil, mapError("expiring node", expErr)
 			}
 
+			b.State.RecordNodeEvent("node.expiry", node, "expiry disabled")
+
 			out := &nodeOutput{}
 			out.Body.Node = nodeFromView(node)
 
@@ -327,6 +336,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, mapError("expiring node", err)
 		}
+
+		b.State.RecordNodeEvent("node.expiry", node, "expiry set to "+expiry.Format(time.RFC3339))
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)
@@ -353,6 +364,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, mapError("renaming node", err)
 		}
+
+		b.State.RecordNodeEvent("node.renamed", node, "renamed to "+in.NewName)
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)
@@ -399,6 +412,8 @@ func registerNodeWriteOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, huma.Error400BadRequest("setting tags", err)
 		}
+
+		b.State.RecordNodeEvent("node.tags", node, "tags: "+strings.Join(in.Body.Tags, ", "))
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)
@@ -447,6 +462,8 @@ func registerNodeAdminOps(api huma.API, b Backend) {
 		if err != nil {
 			return nil, mapError("setting approved routes", err)
 		}
+
+		b.State.RecordNodeEvent("node.routes", node, "approved routes: "+strings.Join(util.PrefixesToString(newApproved), ", "))
 
 		out := &nodeOutput{}
 		out.Body.Node = nodeFromView(node)
@@ -607,6 +624,17 @@ func nodeFromView(view types.NodeView) Node {
 		AvailableRoutes: nonNilStrings(util.PrefixesToString(view.AnnouncedRoutes())),
 		SubnetRoutes:    []string{},
 		Tags:            nonNilStrings(view.Tags().AsSlice()),
+		Endpoints:       []string{},
+	}
+
+	if hi := view.Hostinfo(); hi.Valid() {
+		n.OS = hi.OS()
+		n.OSVersion = hi.OSVersion()
+		n.ClientVersion = hi.IPNVersion()
+	}
+
+	for _, ep := range view.Endpoints().All() {
+		n.Endpoints = append(n.Endpoints, ep.String())
 	}
 
 	if view.User().Valid() {

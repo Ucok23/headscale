@@ -1,0 +1,37 @@
+[Unit]
+Description=headscale flow agent: reports this node's tailnet traffic to headscale
+Documentation=https://headscale.net/stable/ref/flow-agent/
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Reading the kernel connection table needs root. The credential is handed over
+# with LoadCredential, so it never needs to be readable by anyone else.
+#
+#   sudo install -m 600 /dev/null /etc/hs-flow-agent/key
+#   echo 'hskey-client-…' | sudo tee /etc/hs-flow-agent/key
+#
+LoadCredential=key:/etc/hs-flow-agent/key
+ExecStart=/usr/bin/hs-flow-agent --server https://headscale.example.com --key-file %d/key
+Restart=always
+RestartSec=10
+
+NoNewPrivileges=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

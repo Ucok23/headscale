@@ -58,3 +58,6 @@ __debug_bin
 node_modules/
 package-lock.json
 package.json
+# the admin UI is an npm project of its own
+!ui/package.json
+!ui/package-lock.json

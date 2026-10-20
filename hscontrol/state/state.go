@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/juanfont/headscale/hscontrol/activity"
 	hsdb "github.com/juanfont/headscale/hscontrol/db"
 	"github.com/juanfont/headscale/hscontrol/policy"
 	"github.com/juanfont/headscale/hscontrol/policy/matcher"
@@ -143,6 +144,9 @@ type sshCheckPair struct {
 type State struct {
 	// cfg holds the current Headscale configuration
 	cfg *types.Config
+
+	// Activity records events and network flows. Nil-safe: a nil store is a no-op.
+	Activity *activity.Store
 
 	// nodeStore provides an in-memory cache for nodes.
 	nodeStore *NodeStore
@@ -277,7 +281,8 @@ func NewState(cfg *types.Config) (*State, error) {
 	nodeStore.Start()
 
 	s := &State{
-		cfg: cfg,
+		cfg:      cfg,
+		Activity: openActivity(cfg),
 
 		db:        db,
 		ipAlloc:   ipAlloc,
@@ -639,6 +644,8 @@ func (s *State) DeleteNode(node types.NodeView) ([]change.Change, error) {
 	s.nodeStore.DeleteNode(node.ID())
 	s.persistMu.Unlock()
 
+	s.RecordNodeEvent("node.deleted", node, "")
+
 	s.ipAlloc.FreeIPs(node.IPs())
 
 	// An explicit removal of its own, ahead of the policy refresh, so peers
@@ -665,7 +672,10 @@ func (s *State) Connect(id types.NodeID) ([]change.Change, uint64) {
 	// connectivity by completing the Noise handshake.
 	var epoch uint64
 
+	var wasOnline bool
+
 	node, ok := s.nodeStore.UpdateNode(id, func(n *types.Node) {
+		wasOnline = n.Online()
 		n.SessionEpoch++
 		epoch = n.SessionEpoch
 		n.ActiveSessions++
@@ -685,6 +695,10 @@ func (s *State) Connect(id types.NodeID) ([]change.Change, uint64) {
 	}
 
 	log.Info().EmbedObject(node).Msg("node connected")
+
+	if !wasOnline && node.Online() {
+		s.RecordNodeEvent("node.online", node, "")
+	}
 
 	if !maps.Equal(prevRoutes, s.nodeStore.PrimaryRoutes()) {
 		c = append(c, change.NodeAdded(id))
@@ -750,6 +764,7 @@ func (s *State) Disconnect(id types.NodeID, epoch uint64) ([]change.Change, erro
 	}
 
 	log.Info().EmbedObject(node).Msg("node disconnected")
+	s.RecordNodeEvent("node.offline", node, "")
 
 	// Persist LastSeen best-effort: [NodeStore] already reflects offline
 	// and peers still need the change notifications below. Going offline
@@ -1260,6 +1275,10 @@ func (s *State) ExpireExpiredNodes(lastCheck time.Time) (time.Time, []change.Cha
 	updates := make([]change.Change, 0, len(expiredNodes))
 
 	for id, wasOnline := range expiredNodes {
+		if n, ok := s.nodeStore.GetNode(id); ok {
+			s.RecordNodeEvent("node.expired", n, "key expired")
+		}
+
 		c := change.NodeAdded(id)
 		if current, ok := s.nodeStore.GetNode(id); ok && wasOnline && s.polMan.NodeNeedsPeerRecompute(current) {
 			c = c.Merge(change.PolicyChange())
@@ -2077,6 +2096,10 @@ func (s *State) applyAuthNodeUpdate(params authNodeUpdateParams) (types.NodeView
 			Msg("Node re-authorized")
 	}
 
+	if !keysOnly {
+		s.RecordNodeEvent("node.reauthenticated", updatedNodeView, "")
+	}
+
 	return updatedNodeView, keysOnly, nil
 }
 
@@ -2236,7 +2259,10 @@ func (s *State) createAndSaveNewNode(params newNodeParams) (types.NodeView, erro
 	}
 
 	// Add to [NodeStore] after database creates the ID
-	return s.nodeStore.PutNode(*savedNode), nil
+	view := s.nodeStore.PutNode(*savedNode)
+	s.RecordNodeEvent("node.registered", view, "")
+
+	return view, nil
 }
 
 // validateRequestTags validates that the requested tags are permitted for the node.

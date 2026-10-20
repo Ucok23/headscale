@@ -227,9 +227,10 @@ func TestKnownIsComplete(t *testing.T) {
 		seen[s] = true
 	}
 
-	// 7 resources × 2 (write+read) + 2 super-scopes = 16.
-	if len(known) != 16 {
-		t.Errorf("Known() has %d scopes, want 16", len(known))
+	// 8 resources × 2 (write+read) + 2 super-scopes = 18. The eighth resource,
+	// flows, is headscale-specific; the other seven mirror Tailscale's scopes.
+	if len(known) != 18 {
+		t.Errorf("Known() has %d scopes, want 18", len(known))
 	}
 }
 

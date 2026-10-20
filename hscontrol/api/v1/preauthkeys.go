@@ -131,6 +131,8 @@ func registerPreAuthKeys(api huma.API, b Backend) {
 			return nil, mapError("creating pre-auth key", err)
 		}
 
+		b.State.RecordEvent("preauthkey.created", "pre-auth key created")
+
 		out := &preAuthKeyOutput{}
 		out.Body.PreAuthKey = preAuthKeyNewToResponse(preAuthKey)
 
