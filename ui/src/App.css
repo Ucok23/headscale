@@ -13,7 +13,7 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
 .banner.err { background: var(--bad-bg); color: var(--bad); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; }
 
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
 .panel h2 { font-size: 14px; margin: 0 0 10px; }
@@ -132,7 +132,7 @@ textarea.json { width: 100%; font-size: 12px; border: 1px solid var(--line); bor
 .vrowwrap textarea.note { margin: 0 0 4px 0; }
 
 /* shell, machines, network */
-.topnav { display: flex; align-items: center; gap: 4px; max-width: 1500px; margin: 0 auto; padding: 10px 16px 0; }
+.topnav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 1500px; margin: 0 auto; padding: 10px 16px 0; }
 .topnav strong { margin-right: 14px; }
 .topnav a { color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 7px; }
 .topnav a:hover { color: var(--fg); }
@@ -150,7 +150,7 @@ table.machines tr:last-child td { border-bottom: 0; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 7px; }
 .dot.on { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
 .cols.map { grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); }
-@media (max-width: 1000px) { .cols.map { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .cols.map { grid-template-columns: minmax(0, 1fr); } }
 .netsvg { width: 100%; height: auto; display: block; color: var(--muted); }
 .netsvg .edge { color: var(--accent); opacity: .55; transition: opacity .15s; }
 .netsvg .edge.hot { opacity: 1; }
@@ -205,7 +205,7 @@ a.back:hover { color: var(--fg); }
 .dhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 4px 0 18px; }
 .dhead h1 { margin: 0; font-size: 22px; }
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-@media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
 dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; align-items: start; }
 dl.kv dt { color: var(--muted); font-size: 12.5px; padding-top: 1px; }
 dl.kv dd { margin: 0; min-width: 0; }
@@ -237,3 +237,9 @@ button.small { padding: 3px 9px; font-size: 12.5px; }
 button.ghost.danger-text { color: var(--bad); }
 button.ghost.danger-text:hover:not(:disabled) { border-color: var(--bad); }
 .mini-table td.r { text-align: right; }
+
+/* narrow screens: keep addresses on one line (tables scroll sideways), let the nav wrap */
+table.machines .copyable .cv { white-space: nowrap; }
+table.machines td, table.machines th { white-space: nowrap; }
+table.machines td.sub, table.machines td:last-child { white-space: normal; }
+.topnav strong { flex-basis: auto; }
